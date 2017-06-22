@@ -262,3 +262,72 @@ public class SrDebugDirector : MonoBehaviour
         GUI.Label(new Rect(0, 0, Screen.width, Screen.height), helpMessage);
     }
 }
+
+public class AirNet : MonoBehaviour
+{
+    private const float NEW_NET_STRENGTH = 0.33f;
+
+    public int hitForceToDestroy = 20000;
+
+    public float hoursToStartRecovery = 0.1f;
+
+    public float hoursToRecover = 0.1f;
+
+    public Color fullColor = Color.white;
+
+    public Color brokenColor = Color.red;
+
+    private TimeDirector timeDir;
+
+    private Collider netCollider;
+
+    private Material netMaterial;
+
+    private float netStrength = 1f;
+
+    private double recoverStartTime;
+
+    private float dmgPerImpulse;
+
+    private float recoverFactor;
+
+    public void Awake()
+    {
+        this.timeDir = SRSingleton<SceneContext>.Instance.TimeDirector;
+        this.netCollider = base.GetComponent<Collider>();
+        this.netMaterial = base.GetComponent<Renderer>().material;
+        this.dmgPerImpulse = 1f / (float)this.hitForceToDestroy;
+        this.recoverFactor = 1f / (this.hoursToRecover * 3600f);
+    }
+
+    public void OnDestroy()
+    {
+        UnityEngine.Object.Destroy(this.netMaterial);
+    }
+
+    public void OnCollisionEnter(Collision col)
+    {
+        float magnitude = col.impulse.magnitude;
+        this.netStrength = Mathf.Max(0f, this.netStrength - magnitude * this.dmgPerImpulse);
+        this.recoverStartTime = this.timeDir.HoursFromNow(this.hoursToRecover);
+    }
+
+    public void Update()
+    {
+        if (this.netStrength < 1f && this.timeDir.HasReached(this.recoverStartTime))
+        {
+            this.netStrength = Mathf.Clamp((float)((double)this.netStrength + this.timeDir.DeltaWorldTime() * (double)this.recoverFactor), 0.33f, 1f);
+        }
+        this.netCollider.enabled = (this.netStrength > 0f);
+        this.netMaterial.color = this.CurrColor();
+    }
+
+    private Color CurrColor()
+    {
+        if (this.netStrength <= 0f)
+        {
+            return Color.clear;
+        }
+        return Color.Lerp(this.brokenColor, this.fullColor, this.netStrength);
+    }
+}
